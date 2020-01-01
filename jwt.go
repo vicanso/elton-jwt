@@ -15,6 +15,7 @@
 package jwt
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -96,7 +97,7 @@ func (t *TTLToken) Decode(tokenString string) (data string, err error) {
 // NewJWT new jwt middleware
 func NewJWT(config Config) elton.Handler {
 	if config.Decode == nil {
-		panic("decode function can not be nil")
+		panic(errors.New("decode function can not be nil"))
 	}
 	skipper := config.Skipper
 	if skipper == nil {

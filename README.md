@@ -17,9 +17,9 @@ import (
 )
 
 func main() {
-	d := elton.New()
+	e := elton.New()
 	jwtCookie := "jwt"
-	d.Use(responder.NewDefault())
+	e.Use(responder.NewDefault())
 
 	ttlToken := &jwt.TTLToken{
 		TTL: 24 * time.Hour,
@@ -39,7 +39,7 @@ func main() {
 		Passthrough: true,
 	})
 
-	d.GET("/login", jwtPassthrough, func(c *elton.Context) (err error) {
+	e.GET("/login", jwtPassthrough, func(c *elton.Context) (err error) {
 		// 模拟登录成功后获取用户信息
 		data, err := ttlToken.Encode(`{"account":"tree.xie"}`)
 		if err != nil {
@@ -59,13 +59,16 @@ func main() {
 		return
 	})
 
-	d.GET("/", jwtNormal, func(c *elton.Context) (err error) {
+	e.GET("/", jwtNormal, func(c *elton.Context) (err error) {
 		// 获取相应的用户信息
 		userInfo := c.Get(jwt.DefaultKey).(string)
 		c.Body = userInfo
 		return
 	})
-	d.ListenAndServe(":3000")
+	err := e.ListenAndServe(":3000")
+	if err != nil {
+		panic(err)
+	}
 }
 ```
 
