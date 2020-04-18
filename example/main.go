@@ -55,7 +55,7 @@ func main() {
 
 	e.GET("/", jwtNormal, func(c *elton.Context) (err error) {
 		// 获取相应的用户信息
-		userInfo := c.Get(jwt.DefaultKey).(string)
+		userInfo := c.GetString(jwt.DefaultKey)
 		c.BodyBuffer = bytes.NewBufferString(userInfo)
 		return
 	})

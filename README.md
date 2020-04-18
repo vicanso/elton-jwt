@@ -8,18 +8,18 @@ JWT middleware for elton.
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http"
 	"time"
 
 	"github.com/vicanso/elton"
 	jwt "github.com/vicanso/elton-jwt"
-	responder "github.com/vicanso/elton-responder"
 )
 
 func main() {
 	e := elton.New()
 	jwtCookie := "jwt"
-	e.Use(responder.NewDefault())
 
 	ttlToken := &jwt.TTLToken{
 		TTL: 24 * time.Hour,
@@ -53,16 +53,17 @@ func main() {
 		if err != nil {
 			return
 		}
-		c.Body = map[string]string{
+		buf, _ := json.Marshal(map[string]string{
 			"token": data,
-		}
+		})
+		c.BodyBuffer = bytes.NewBuffer(buf)
 		return
 	})
 
 	e.GET("/", jwtNormal, func(c *elton.Context) (err error) {
 		// 获取相应的用户信息
-		userInfo := c.Get(jwt.DefaultKey).(string)
-		c.Body = userInfo
+		userInfo := c.GetString(jwt.DefaultKey)
+		c.BodyBuffer = bytes.NewBufferString(userInfo)
 		return
 	})
 	err := e.ListenAndServe(":3000")
