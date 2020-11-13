@@ -32,6 +32,28 @@ import (
 	"github.com/vicanso/elton"
 )
 
+func TestTTLToken(t *testing.T) {
+	assert := assert.New(t)
+	ttlToken := TTLToken{
+		CookieName: "jwt",
+		Secret:     []byte("abcd"),
+	}
+	data := "custom data"
+	token, err := ttlToken.Encode(data)
+	assert.Nil(err)
+
+	result, err := ttlToken.Decode(token)
+	assert.Nil(err)
+	assert.Equal(data, result)
+
+	c := elton.NewContext(httptest.NewRecorder(), nil)
+	err = ttlToken.AddToCookie(c, map[string]string{
+		"a": "1",
+	})
+	assert.Nil(err)
+	assert.NotEmpty(c.GetHeader(elton.HeaderSetCookie))
+}
+
 func TestJWT(t *testing.T) {
 	t.Run("token not found", func(t *testing.T) {
 		assert := assert.New(t)

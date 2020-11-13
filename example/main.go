@@ -39,13 +39,10 @@ func main() {
 			return
 		}
 		// 将相关信息写入cookie
-		err = c.AddCookie(&http.Cookie{
+		c.AddCookie(&http.Cookie{
 			Name:  jwtCookie,
 			Value: data,
 		})
-		if err != nil {
-			return
-		}
 		buf, _ := json.Marshal(map[string]string{
 			"token": data,
 		})

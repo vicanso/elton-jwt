@@ -22,6 +22,7 @@
 package jwt
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -48,8 +49,9 @@ type (
 	}
 	// TTLToken normal token
 	TTLToken struct {
-		TTL    time.Duration
-		Secret []byte
+		CookieName string
+		TTL        time.Duration
+		Secret     []byte
 	}
 )
 
@@ -68,7 +70,7 @@ var (
 
 const (
 	// DefaultKey default key for data
-	DefaultKey = "user"
+	DefaultKey = "_jwtData"
 )
 
 // Encode ttl token encode
@@ -98,6 +100,23 @@ func (t *TTLToken) Decode(tokenString string) (data string, err error) {
 	} else {
 		err = ErrTokenIsInvalid
 	}
+	return
+}
+
+// AddToCookie convert data to json, and encode it to cookie
+func (t *TTLToken) AddToCookie(c *elton.Context, data interface{}) (err error) {
+	buf, err := json.Marshal(data)
+	if err != nil {
+		return
+	}
+	token, err := t.Encode(string(buf))
+	if err != nil {
+		return
+	}
+	c.AddCookie(&http.Cookie{
+		Name:  t.CookieName,
+		Value: token,
+	})
 	return
 }
 
@@ -134,7 +153,8 @@ func NewJWT(config Config) elton.Handler {
 		}
 		if token != "" {
 			data, err := config.Decode(token)
-			if err != nil {
+			// 如果是pass through，解码token解析时，继续后续流程
+			if err != nil && !config.Passthrough {
 				return err
 			}
 			c.Set(key, data)
