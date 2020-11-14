@@ -114,8 +114,9 @@ func (t *TTLToken) AddToCookie(c *elton.Context, data interface{}) (err error) {
 		return
 	}
 	c.AddCookie(&http.Cookie{
-		Name:  t.CookieName,
-		Value: token,
+		Name:     t.CookieName,
+		Value:    token,
+		HttpOnly: true,
 	})
 	return
 }
