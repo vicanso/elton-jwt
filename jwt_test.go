@@ -26,7 +26,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/vicanso/elton"
@@ -35,8 +34,7 @@ import (
 func TestTTLToken(t *testing.T) {
 	assert := assert.New(t)
 	ttlToken := TTLToken{
-		CookieName: "jwt",
-		Secret:     []byte("abcd"),
+		Secret: []byte("abcd"),
 	}
 	data := "custom data"
 	token, err := ttlToken.Encode(data)
@@ -47,32 +45,32 @@ func TestTTLToken(t *testing.T) {
 	assert.Equal(data, result)
 
 	c := elton.NewContext(httptest.NewRecorder(), nil)
-	err = ttlToken.AddToCookie(c, map[string]string{
-		"a": "1",
-	})
+	err = ttlToken.addToCookie(c, &http.Cookie{
+		Name: "jwt",
+	}, "{}")
 	assert.Nil(err)
 	assert.NotEmpty(c.GetHeader(elton.HeaderSetCookie))
 }
 
 func TestJWT(t *testing.T) {
+	ttlToken := &TTLToken{
+		Secret: []byte("abcd"),
+	}
 	t.Run("token not found", func(t *testing.T) {
 		assert := assert.New(t)
 		req := httptest.NewRequest("GET", "/", nil)
 		c := elton.NewContext(nil, req)
 		fn := NewJWT(Config{
-			Decode: func(data string) (string, error) {
-				return "", nil
-			},
+			TTLToken: ttlToken,
 		})
 		err := fn(c)
 		assert.Equal(ErrTokenNotFound, err)
 	})
 
 	t.Run("decode fail", func(t *testing.T) {
-		token := &TTLToken{}
 		cookieName := "jwt"
 		conf := Config{
-			Decode:     token.Decode,
+			TTLToken:   ttlToken,
 			CookieName: cookieName,
 		}
 
@@ -92,19 +90,15 @@ func TestJWT(t *testing.T) {
 	})
 
 	t.Run("get token from cookie", func(t *testing.T) {
-		token := &TTLToken{
-			TTL:    60 * time.Second,
-			Secret: []byte("secret"),
-		}
 		cookieName := "jwt"
 		conf := Config{
-			Decode:     token.Decode,
+			TTLToken:   ttlToken,
 			CookieName: cookieName,
 		}
 
 		data := "abcd"
 		assert := assert.New(t)
-		tokenString, err := token.Encode(data)
+		tokenString, err := ttlToken.Encode(data)
 		assert.Nil(err)
 		req := httptest.NewRequest("GET", "/", nil)
 		req.AddCookie(&http.Cookie{
@@ -119,5 +113,33 @@ func TestJWT(t *testing.T) {
 		err = fn(c)
 		assert.Nil(err)
 		assert.Equal(data, c.GetString(DefaultKey))
+	})
+
+	t.Run("set token to cookie", func(t *testing.T) {
+		cookieName := "jwt"
+		conf := Config{
+			TTLToken:   ttlToken,
+			CookieName: cookieName,
+		}
+		data := "abcd"
+		newData := "def"
+		assert := assert.New(t)
+		tokenString, err := ttlToken.Encode(data)
+		assert.Nil(err)
+		req := httptest.NewRequest("GET", "/", nil)
+		req.AddCookie(&http.Cookie{
+			Name:  cookieName,
+			Value: tokenString,
+		})
+		c := elton.NewContext(httptest.NewRecorder(), req)
+		c.Next = func() error {
+			assert.Equal(data, c.GetString(DefaultKey))
+			c.Set(DefaultKey, "def")
+			return nil
+		}
+		fn := NewJWT(conf)
+		err = fn(c)
+		assert.Nil(err)
+		assert.Equal(newData, c.GetString(DefaultKey))
 	})
 }

@@ -22,7 +22,6 @@
 package jwt
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -34,8 +33,6 @@ import (
 )
 
 type (
-	// Decode decode function
-	Decode func(data string) (string, error)
 	// Config jwt config
 	Config struct {
 		Key string
@@ -44,14 +41,12 @@ type (
 		Skipper    elton.Skipper
 		// Passthrough passthrough when token not found
 		Passthrough bool
-		// Decode decode
-		Decode Decode
+		TTLToken    *TTLToken
 	}
 	// TTLToken normal token
 	TTLToken struct {
-		CookieName string
-		TTL        time.Duration
-		Secret     []byte
+		TTL    time.Duration
+		Secret []byte
 	}
 )
 
@@ -103,28 +98,21 @@ func (t *TTLToken) Decode(tokenString string) (data string, err error) {
 	return
 }
 
-// AddToCookie convert data to json, and encode it to cookie
-func (t *TTLToken) AddToCookie(c *elton.Context, data interface{}) (err error) {
-	buf, err := json.Marshal(data)
+// AddToCookie encode data and add to cookie
+func (t *TTLToken) addToCookie(c *elton.Context, cookie *http.Cookie, data string) (err error) {
+	token, err := t.Encode(data)
 	if err != nil {
 		return
 	}
-	token, err := t.Encode(string(buf))
-	if err != nil {
-		return
-	}
-	c.AddCookie(&http.Cookie{
-		Name:     t.CookieName,
-		Value:    token,
-		HttpOnly: true,
-	})
+	cookie.Value = token
+	c.AddCookie(cookie)
 	return
 }
 
 // NewJWT new jwt middleware
 func NewJWT(config Config) elton.Handler {
-	if config.Decode == nil {
-		panic(errors.New("decode function can not be nil"))
+	if config.TTLToken == nil {
+		panic(errors.New("ttl token can not be nil"))
 	}
 	skipper := config.Skipper
 	if skipper == nil {
@@ -134,6 +122,8 @@ func NewJWT(config Config) elton.Handler {
 	if key == "" {
 		key = DefaultKey
 	}
+
+	ttlToken := config.TTLToken
 
 	return func(c *elton.Context) (err error) {
 		if skipper(c) {
@@ -152,16 +142,32 @@ func NewJWT(config Config) elton.Handler {
 			err = ErrTokenNotFound
 			return
 		}
+		originalData := ""
 		if token != "" {
-			data, err := config.Decode(token)
+			data, err := ttlToken.Decode(token)
 			// 如果是pass through，解码token解析时，继续后续流程
 			if err != nil && !config.Passthrough {
 				return err
 			}
+			originalData = data
 			c.Set(key, data)
 		}
 
 		err = c.Next()
+		if err != nil {
+			return
+		}
+		currentData := c.GetString(key)
+		// 如果无变化
+		if currentData == originalData {
+			return
+		}
+		// 添加数据至cookie中
+		err = ttlToken.addToCookie(c, &http.Cookie{
+			Path:     "/",
+			HttpOnly: true,
+			Name:     config.CookieName,
+		}, currentData)
 		if err != nil {
 			return
 		}

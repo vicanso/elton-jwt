@@ -2,8 +2,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
-	"net/http"
 	"time"
 
 	"github.com/vicanso/elton"
@@ -23,30 +21,19 @@ func main() {
 	// Passthrough为false，会校验token是否正确
 	jwtNormal := jwt.NewJWT(jwt.Config{
 		CookieName: jwtCookie,
-		Decode:     ttlToken.Decode,
+		TTLToken:   ttlToken,
 	})
 	// 用于初始化创建token使用（此时可能token还没有或者已过期)
 	jwtPassthrough := jwt.NewJWT(jwt.Config{
 		CookieName:  jwtCookie,
-		Decode:      ttlToken.Decode,
+		TTLToken:    ttlToken,
 		Passthrough: true,
 	})
 
 	e.GET("/login", jwtPassthrough, func(c *elton.Context) (err error) {
 		// 模拟登录成功后获取用户信息
-		data, err := ttlToken.Encode(`{"account":"tree.xie"}`)
-		if err != nil {
-			return
-		}
-		// 将相关信息写入cookie
-		c.AddCookie(&http.Cookie{
-			Name:  jwtCookie,
-			Value: data,
-		})
-		buf, _ := json.Marshal(map[string]string{
-			"token": data,
-		})
-		c.BodyBuffer = bytes.NewBuffer(buf)
+		c.Set(jwt.DefaultKey, `{"account":"tree.xie"}`)
+		c.BodyBuffer = bytes.NewBufferString(`{"account":"tree.xie"}`)
 		return
 	})
 
