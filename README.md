@@ -1,8 +1,8 @@
 # elton-jwt
 
+[![Build Status](https://github.com/vicanso/elton-jwt/workflows/Test/badge.svg)](https://github.com/vicanso/elton-jwt/actions)
+
 JWT middleware for elton.
-
-
 
 ```go
 package main
