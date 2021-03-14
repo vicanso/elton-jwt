@@ -42,6 +42,8 @@ type (
 		// Passthrough passthrough when token not found
 		Passthrough bool
 		TTLToken    *TTLToken
+		// Cookie cookie template
+		Cookie http.Cookie
 	}
 	// TTLToken normal token
 	TTLToken struct {
@@ -67,6 +69,8 @@ const (
 	// DefaultKey default key for data
 	DefaultKey = "_jwtData"
 )
+
+const HeaderJWTKey = "X-JWT"
 
 // Encode ttl token encode
 func (t *TTLToken) Encode(data string) (tokenString string, err error) {
@@ -109,6 +113,15 @@ func (t *TTLToken) addToCookie(c *elton.Context, cookie *http.Cookie, data strin
 	return
 }
 
+func (t *TTLToken) addToHeader(c *elton.Context, data string) (err error) {
+	token, err := t.Encode(data)
+	if err != nil {
+		return
+	}
+	c.SetHeader(HeaderJWTKey, token)
+	return
+}
+
 // NewJWT new jwt middleware
 func NewJWT(config Config) elton.Handler {
 	if config.TTLToken == nil {
@@ -124,14 +137,23 @@ func NewJWT(config Config) elton.Handler {
 	}
 
 	ttlToken := config.TTLToken
-
+	templateCookie := config.Cookie
+	usedCookie := false
+	// 如果未设置 cookie 模板
+	if templateCookie.Name == "" {
+		templateCookie.Name = config.CookieName
+		templateCookie.Path = "/"
+	}
+	usedCookie = templateCookie.Name != ""
+	// 强制要求只能 http only
+	templateCookie.HttpOnly = true
 	return func(c *elton.Context) (err error) {
 		if skipper(c) {
 			return c.Next()
 		}
 		var token string
-		if config.CookieName != "" {
-			token, err = getTokenFromCookie(c, config.CookieName)
+		if usedCookie {
+			token, err = getTokenFromCookie(c, templateCookie.Name)
 		} else {
 			token, err = getTokenFromHeader(c)
 		}
@@ -163,11 +185,13 @@ func NewJWT(config Config) elton.Handler {
 			return
 		}
 		// 添加数据至cookie中
-		err = ttlToken.addToCookie(c, &http.Cookie{
-			Path:     "/",
-			HttpOnly: true,
-			Name:     config.CookieName,
-		}, currentData)
+		if usedCookie {
+			cookie := templateCookie
+			err = ttlToken.addToCookie(c, &cookie, currentData)
+		} else {
+			// 添加至header中
+			err = ttlToken.addToHeader(c, currentData)
+		}
 		if err != nil {
 			return
 		}

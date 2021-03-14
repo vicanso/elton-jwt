@@ -118,8 +118,10 @@ func TestJWT(t *testing.T) {
 	t.Run("set token to cookie", func(t *testing.T) {
 		cookieName := "jwt"
 		conf := Config{
-			TTLToken:   ttlToken,
-			CookieName: cookieName,
+			TTLToken: ttlToken,
+			Cookie: http.Cookie{
+				Name: cookieName,
+			},
 		}
 		data := "abcd"
 		newData := "def"
@@ -140,6 +142,30 @@ func TestJWT(t *testing.T) {
 		fn := NewJWT(conf)
 		err = fn(c)
 		assert.Nil(err)
+		assert.Equal(newData, c.GetString(DefaultKey))
+	})
+
+	t.Run("set token to header", func(t *testing.T) {
+		conf := Config{
+			TTLToken: ttlToken,
+		}
+		data := "abcd"
+		newData := "def"
+		assert := assert.New(t)
+		tokenString, err := ttlToken.Encode(data)
+		assert.Nil(err)
+		req := httptest.NewRequest("GET", "/", nil)
+		req.Header.Set("Authorization", "bearer "+tokenString)
+		c := elton.NewContext(httptest.NewRecorder(), req)
+		c.Next = func() error {
+			assert.Equal(data, c.GetString(DefaultKey))
+			c.Set(DefaultKey, "def")
+			return nil
+		}
+		fn := NewJWT(conf)
+		err = fn(c)
+		assert.Nil(err)
+		assert.NotEmpty(c.GetHeader(HeaderJWTKey))
 		assert.Equal(newData, c.GetString(DefaultKey))
 	})
 }
