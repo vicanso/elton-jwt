@@ -27,7 +27,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt"
 	"github.com/vicanso/elton"
 	"github.com/vicanso/hes"
 )
